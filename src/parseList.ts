@@ -84,16 +84,16 @@ export function parseChannel(csvRow: any) {
   }
 }
 
-function read() {
+export function read() {
   const contactsIn = fs.readFileSync("contacts-in.csv", "utf-8");
   const channelsIn = fs.readFileSync("channels-in.csv", "utf-8");
 
   const csvContacts = parseCsv(contactsIn, { columns: true });
   const csvChannels = parseCsv(channelsIn, { columns: true });
 
-  for (let i in csvContacts) {
-    parseContact(csvContacts[i]);
-  }
+  // for (let i in csvContacts) {
+  //   parseContact(csvContacts[i]);
+  // }
 
   for (let i in csvChannels) {
     parseChannel(csvChannels[i]);

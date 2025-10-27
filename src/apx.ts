@@ -1,8 +1,9 @@
-import { Channel } from "diagnostics_channel";
-import { Contact } from "./structures/Contact";
+import { Contact, contacts } from "./structures/Contact";
 import { DPL, FMBandwidth, FMChannel, FMSquelch } from "./structures/FMChannel";
 import { P25Channel } from "./structures/P25Channel";
 import * as fs from "fs";
+import { read } from "./parseList";
+import { channels, Channel } from "./structures/Channel";
 
 const USE_TTS = true;
 const USE_MPL = true;
@@ -184,13 +185,13 @@ function persChannel(channel: FMChannel | P25Channel) {
   return persChannel.join("\t");
 }
 
-function zoneChannel(channel: FMChannel | P25Channel) {
+function zoneChannel(channel: FMChannel | P25Channel, personality: string) {
   return [
     "", // Position
     channel.names[14], // Channel Name
     channel.names[8], // Top Display Channel name
     "Cnv", // Channel Type
-    channel?.extra?.personality ?? channel.group, // Personality
+    personality, // Personality
     "", // Trunking Talkgroup
     channel.names[14], // Conventional Frequency Option
     "<Last Selected>", // Radio Profile Selection
@@ -206,17 +207,63 @@ function zoneChannel(channel: FMChannel | P25Channel) {
   ].join("	");
 }
 
+function getPersonality(channel: FMChannel | P25Channel) {
+  // Codeplug special personality override
+  if (channel?.extra?.personality) {
+    return channel?.extra?.personality;
+  }
+
+  if (channel.group.length > 13) {
+    console.log("Zone name too long: " + channel.group);
+  }
+
+  // There is no way to make a zone with both TX and RX channels, so we'll separate RX only channels
+  // $ refers to scan
+  if (channel.txFreq === null) {
+    return "$" + channel.group;
+  }
+
+  return channel.group;
+}
+
+const personalities: Map<string, Set<FMChannel | P25Channel>> = new Map();
+
 function run(_contacts: Set<Contact>, channels: Set<Channel>) {
   const zoneChannels = [];
   const persChannels = [];
 
+  // Sort into personalities
   for (let channel of channels) {
-    if (channel instanceof FMChannel || channel instanceof P25Channel) {
-      persChannels.push(persChannel(channel));
-      zoneChannels.push(zoneChannel(channel));
+    if (
+      channel.rxFreq > 380 &&
+      channel.rxFreq < 470 &&
+      (channel instanceof FMChannel || channel instanceof P25Channel)
+    ) {
+      const personality = getPersonality(channel);
+      if (personalities.has(personality)) {
+        personalities.get(personality).add(channel);
+      } else {
+        personalities.set(personality, new Set([channel]));
+      }
     }
+  }
+
+  for (let personalityEntry of personalities.entries()) {
+    let personality = personalityEntry[0];
+    let channels = personalityEntry[1];
+    persChannels.push(personality);
+    zoneChannels.push(personality);
+    for (let channel of channels) {
+      persChannels.push(persChannel(channel));
+      zoneChannels.push(zoneChannel(channel, personality));
+    }
+    persChannels.push("\r\n");
+    zoneChannels.push("\r\n");
   }
 
   fs.writeFileSync("apx-channels-zones.tsv", zoneChannels.join("\r\n"));
   fs.writeFileSync("apx-channels-personalities.tsv", persChannels.join("\r\n"));
 }
+
+read();
+run(contacts, channels);

@@ -1,7 +1,9 @@
 import { DPL, FMBandwidth, FMChannel } from "./structures/FMChannel";
 import { DMRChannel } from "./structures/DMRChannel";
-import { Contact, ContactType } from "./structures/Contact";
-import { Channel } from "diagnostics_channel";
+import { Contact, contacts, ContactType } from "./structures/Contact";
+import { read } from "./parseList";
+import { Channel, channels } from "./structures/Channel";
+import * as fs from "fs";
 
 const CHANNEL_HEADER =
   "Channel Number,Channel Name,Channel Type,Rx Frequency,Tx Frequency,Bandwidth (kHz),Colour Code,Timeslot,Contact,TG List,DMR ID,TS1_TA_Tx,TS2_TA_Tx ID,RX Tone,TX Tone,Squelch,Power,Rx Only,Zone Skip,All Skip,TOT,VOX,No Beep,No Eco,APRS,Latitude,Longitude";
@@ -84,7 +86,7 @@ function analogChannel(channel: FMChannel, position: number): string {
     rxOnly = true;
   }
 
-  let bandwidth = "25";
+  let bandwidth: "25" | "12.5" = "25";
   // Shortcut since this radio only supports 25, and 12.5 kHz
   if (channel.bandwidth != FMBandwidth["25 kHz"]) {
     bandwidth = "12.5";
@@ -104,7 +106,7 @@ function analogChannel(channel: FMChannel, position: number): string {
     txSquelch += channel.txSquelch.inverse ? "I" : "N";
   }
 
-  return digitalTemplate(
+  return analogueTemplate(
     position,
     channel.names[14],
     channel.rxFreq,
@@ -149,4 +151,10 @@ function run(contacts: Set<Contact>, channels: Set<Channel>) {
 
   contactList.join("\n");
   channelList.join("\n");
+
+  fs.writeFileSync("Contacts.csv", contactList.join("\n"));
+  fs.writeFileSync("Channels.csv", channelList.join("\n"));
 }
+
+read();
+run(contacts, channels);
